@@ -3,11 +3,8 @@
 
 #define TJC Serial  //定義觸控螢幕
 #define FRAME_LENGTH 6
-
 MPU6050 mpu(Wire);  //定義陀螺儀
-
 #define laser 7  //雷射開關
-
 unsigned long angle_timer = 0;
 int a = 0;  //Y軸
 int b = 0;  //Z軸
@@ -38,8 +35,7 @@ void loop() {
     sprintf(str, "x3.val=%d\xff\xff\xff", b);
     TJC.print(str);
   }
-
-
+  
   //觸控螢幕讀取模式
   /*串口数据格式：
     串口数据帧长度：6字节
