@@ -1,0 +1,93 @@
+#include <Wire.h>
+#include <MPU6050_light.h>
+
+#define TJC Serial  //定義觸控螢幕
+#define FRAME_LENGTH 6
+
+MPU6050 mpu(Wire);  //定義陀螺儀
+
+#define laser 7  //雷射開關
+
+unsigned long angle_timer = 0;
+int a = 0;  //Y軸
+int b = 0;  //Z軸
+
+void setup() {
+  //Serial.begin(9600);
+  pinMode(laser, OUTPUT);
+  TJC.begin(9600);  //觸控螢幕初始化
+  while (TJC.read() >= 0)
+    ;  //因为串口屏开机会发送88 ff ff ff,所以要清空串口缓冲区
+  angle_timer = millis();
+  Wire.begin();  //通訊初始化
+  mpu.begin();   //陀螺儀初始化
+  delay(1000);
+  mpu.calcOffsets();  // gyro and accelero
+}
+void loop() {
+  mpu.update();  //讀取角度資料
+  //觸控螢幕傳值模式
+  char str[100];                      // put your main code here, to run repeatedly:
+  if (millis() >= angle_timer + 800)  // print data every 10ms
+  {
+    angle_timer = millis();
+    a = float(mpu.getAngleY()) * 10;
+    sprintf(str, "x2.val=%d\xff\xff\xff", a);
+    TJC.print(str);
+    b = float(mpu.getAngleZ()) * 10;
+    sprintf(str, "x3.val=%d\xff\xff\xff", b);
+    TJC.print(str);
+  }
+
+
+  //觸控螢幕讀取模式
+  /*串口数据格式：
+    串口数据帧长度：6字节
+    帧头   编号   状态    帧尾
+    0x55  1字节  1字节   0xffffff
+    例子：上位机代码  printh 55 01 00 ff ff ff  含义：1号关闭
+    例子：上位机代码  printh 55 01 01 ff ff ff  含义：1号開啟*/
+
+  while (TJC.available() >= FRAME_LENGTH)  //当串口缓冲区大于等于6时
+  {
+    unsigned char ubuffer[FRAME_LENGTH];      //从串口缓冲读取1个字节但不删除
+    unsigned char frame_header = TJC.peek();  //当获取的数据是包头(0x55)时
+    if (frame_header == 0x55)                 //从串口缓冲区读取6字节
+    {
+      TJC.readBytes(ubuffer, FRAME_LENGTH);  //將字符從串行端口讀入緩衝區。如果已讀取確定的長度或超時，則該函數終止
+      if (ubuffer[3] == 0xff && ubuffer[4] == 0xff && ubuffer[5] == 0xff) {
+        //sprintf(str, "t3.txt=\"%d is %s\"\xff\xff\xff", ubuffer[1], ubuffer[2] ? "on" : "off");//0 is on
+        if (ubuffer[1] == 0x00 && ubuffer[2] == 0x01)  //角度歸零
+        {
+          sprintf(str, "t3.txt=\"Angle Zeroing...\"\xff\xff\xff");
+          TJC.print(str);
+          delay(1000);
+          mpu.calcOffsets();//歸零
+          sprintf(str, "t3.txt=\"Angle Zero Ok\"\xff\xff\xff");
+          TJC.print(str);
+        }
+
+        if (ubuffer[1] == 0x01 && ubuffer[2] == 0x01)  //數值歸零
+        {
+          sprintf(str, "t3.txt=\"Value Reset Ok\"\xff\xff\xff");
+          TJC.print(str);
+        }
+        if (ubuffer[1] == 0x02 && ubuffer[2] == 0x01)  //雷射開
+        {
+          digitalWrite(laser, HIGH);
+          sprintf(str, "t3.txt=\"Laser on\"\xff\xff\xff");
+          TJC.print(str);
+        }
+        if (ubuffer[1] == 0x02 && ubuffer[2] == 0x00)  //雷射關
+        {
+          digitalWrite(laser, LOW);
+          sprintf(str, "t3.txt=\"Laser off\"\xff\xff\xff");
+          TJC.print(str);
+        }
+        else {
+          TJC.read();  //从串口缓冲读取1个字节并删除
+        }
+      }
+    }
+  }
+}
